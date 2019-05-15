@@ -3,8 +3,7 @@ import tempfile
 import os
 import sys
 import time
-from data_preprosessing.tfrecord import read_and_decode
-from data_preprosessing.tfrecord import get_data
+from data_preprocessing.tfrecord import read_and_decode,get_data,clear_dir
 
 def conv2d(x,W):
     return tf.nn.conv2d(x,W,strides=[1, 1, 1, 1],padding="SAME")
@@ -119,15 +118,20 @@ def Evaluator(output,label):
 
 
 def train():
+
     iter_num = 10
     batch_size = 2
+    class_num = 6
     train_tfrecord_path = './data/record/train.tfrecords'
     val_tfrecord_path = './data/record/val.tfrecords'
     test_tfrecord_path = './data/record/test.tfrecords'
+    model_path = './model/'
+
+    clear_dir(model_path)
 
     x = tf.placeholder(tf.float32, [None, 128, 128, 3])
 
-    label = tf.placeholder(tf.float32, [None, 6])
+    label = tf.placeholder(tf.float32, [None, class_num])
     output,keep_prob = cnn(x)
 
     # 优化器
@@ -135,16 +139,12 @@ def train():
 
     # 评估器
     accuracy = Evaluator(output,label)
-
     # 读取数据
-    train_x, train_label = get_data(train_tfrecord_path,batch_size=batch_size)
+    train_x, train_label = get_data(train_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
+    val_x, val_label = get_data(val_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
+    test_x, test_label = get_data(test_tfrecord_path,batch_size=batch_size,one_hot=True,label_num=class_num)
 
-    val_x, val_label = get_data(val_tfrecord_path,batch_size=batch_size)
-
-    test_x, test_label = get_data(test_tfrecord_path,batch_size=batch_size)
-
-
-    '''保存图'''
+    '''保存模型'''
     saver = tf.train.Saver(max_to_keep=5)
 
     max_accuracy = 0.0
@@ -156,27 +156,27 @@ def train():
         for i in range(iter_num+1):
             start_time = time.time()
 
-            batch_input_x, batch_input_label = sess.run([train_x, train_label])
+            input_train_x, input_train_label = sess.run([train_x, train_label])
 
             # 训练一步
-            optimizer.run(session=sess, feed_dict={x:batch_input_x, label:batch_input_label, keep_prob:0.5})
+            optimizer.run(session=sess, feed_dict={x:input_train_x, label:input_train_label, keep_prob:0.5})
 
             if i%2==0:
 
-                val_x, val_label = sess.run([val_x, val_label])
+                input_val_x, input_val_label = sess.run([val_x, val_label])
 
-                train_accuracy = accuracy.eval(session=sess, feed_dict={x:train_x, label:train_label, keep_prob:1.0})
-                val_accuracy = accuracy.eval(session=sess, feed_dict={x:val_x, label:val_label, keep_prob:1.0})
+                train_accuracy = accuracy.eval(session=sess, feed_dict={x:input_train_x, label:input_train_label, keep_prob:1.0})
+                val_accuracy = accuracy.eval(session=sess, feed_dict={x:input_val_x, label:input_val_label, keep_prob:1.0})
                 print('===step {},train accuracy is {},val accuracy is {}==='.format(i,train_accuracy,val_accuracy))
 
                 if val_accuracy>max_accuracy:
                     max_accuracy = val_accuracy
-                    saver.save(sess,'./model/model.ckpt')
+                    saver.save(sess,model_path + 'model.ckpt')
 
-        # test_x, test_label = sess.run([test_x, test_label])
-        #
-        # test_accuracy = accuracy.eval(session=sess, feed_dict={x:test_x, label:test_label, keep_prob:1.0})
-        # print('===test accuracy is {}==='.format(test_accuracy))
+        input_test_x, input_test_label = sess.run([test_x, test_label])
+
+        test_accuracy = accuracy.eval(session=sess, feed_dict={x:input_test_x, label:input_test_label, keep_prob:1.0})
+        print('===test accuracy is {}==='.format(test_accuracy))
 
         coord.request_stop()
         coord.join(threads)
