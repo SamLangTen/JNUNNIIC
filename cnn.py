@@ -21,6 +21,14 @@ def weight_variable(shape):
 
 
 
+image_summary = tf.summary.image
+scalar_summary = tf.summary.scalar
+histogram_summary = tf.summary.histogram
+merge_summary = tf.summary.merge
+SummaryWriter = tf.summary.FileWriter
+
+
+
 def cnn(x):
     keep_prob = tf.placeholder(tf.float32)
 
@@ -100,6 +108,7 @@ def Loss(output,label):
     with tf.name_scope("loss"):
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=label,logits=output)
         cross_entropy_mean = tf.reduce_mean(cross_entropy)
+        loss_summary = scalar_summary('loss', cross_entropy_mean)
     return cross_entropy_mean
 
 def Optimizer(output,label):
@@ -112,15 +121,19 @@ def Evaluator(output,label):
     with tf.name_scope("Accuracy"):
         correct_prediction = tf.equal(tf.argmax(label,1),tf.argmax(output,1))
         correct_prediction = tf.cast(correct_prediction,tf.float32)
-    accuracy = tf.reduce_mean(correct_prediction)
+
+        accuracy = tf.reduce_mean(correct_prediction)
+        acc_summary = scalar_summary('accuracy', accuracy)
     return accuracy
 
 
 
 def train():
-
-    iter_num = 10
-    batch_size = 2
+    # 总迭代次数
+    iter_num = 20
+    # 输出间隔
+    log_iter_step = 10
+    batch_size = 32
     class_num = 6
     train_tfrecord_path = './data/record/train.tfrecords'
     val_tfrecord_path = './data/record/val.tfrecords'
@@ -139,6 +152,10 @@ def train():
 
     # 评估器
     accuracy = Evaluator(output,label)
+
+    # 误差
+    loss = Loss(output,label)
+
     # 读取数据
     train_x, train_label = get_data(train_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
     val_x, val_label = get_data(val_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
@@ -147,8 +164,11 @@ def train():
     '''保存模型'''
     saver = tf.train.Saver(max_to_keep=5)
 
+    merge = tf.summary.merge_all()
+
     max_accuracy = 0.0
     with tf.Session() as sess:
+        writer = tf.summary.FileWriter("./logs/", sess.graph)
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         coord = tf.train.Coordinator()
@@ -161,17 +181,21 @@ def train():
             # 训练一步
             optimizer.run(session=sess, feed_dict={x:input_train_x, label:input_train_label, keep_prob:0.5})
 
-            if i%2==0:
+            if i%log_iter_step==0:
 
                 input_val_x, input_val_label = sess.run([val_x, val_label])
 
+                loss_value = loss.eval(session=sess, feed_dict={x:input_train_x, label:input_train_label, keep_prob:1.0})
                 train_accuracy = accuracy.eval(session=sess, feed_dict={x:input_train_x, label:input_train_label, keep_prob:1.0})
                 val_accuracy = accuracy.eval(session=sess, feed_dict={x:input_val_x, label:input_val_label, keep_prob:1.0})
-                print('===step {},train accuracy is {},val accuracy is {}==='.format(i,train_accuracy,val_accuracy))
+                print('===step {},loss value is {},train accuracy is {},val accuracy is {}==='.format(i,loss_value,train_accuracy,val_accuracy))
 
                 if val_accuracy>max_accuracy:
                     max_accuracy = val_accuracy
-                    saver.save(sess,model_path + 'model.ckpt')
+                    saver.save(sess,model_path + 'model-' + str(i) + '.ckpt')
+
+                summary = sess.run(merge, feed_dict={x:input_train_x, label:input_train_label, keep_prob:1.0})
+                writer.add_summary(summary, i)
 
         input_test_x, input_test_label = sess.run([test_x, test_label])
 
