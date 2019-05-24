@@ -108,3 +108,7 @@ data
 
 # IDE
 .vscode
+
+# Model
+logs
+model
