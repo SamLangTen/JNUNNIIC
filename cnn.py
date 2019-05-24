@@ -135,7 +135,7 @@ def Evaluator(output, label):
     return accuracy
 
 
-def train(iter_num=20, log_iter_step=10, batch_size=32):
+def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restore_path=''):
     # 总迭代次数
     # 输出间隔
     class_num = 6
@@ -144,7 +144,7 @@ def train(iter_num=20, log_iter_step=10, batch_size=32):
     test_tfrecord_path = './data/record/test.tfrecords'
     model_path = './model/'
 
-    clear_dir(model_path)
+    # clear_dir(model_path)
 
     x = tf.placeholder(tf.float32, [None, 128, 128, 3])
 
@@ -182,7 +182,8 @@ def train(iter_num=20, log_iter_step=10, batch_size=32):
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         for i in range(iter_num+1):
             start_time = time.time()
-
+            if(is_restore):
+                saver.restore(sess, model_path+restore_path)
             input_train_x, input_train_label = sess.run([train_x, train_label])
 
             # 训练一步
@@ -222,22 +223,24 @@ def train(iter_num=20, log_iter_step=10, batch_size=32):
 
 
 if __name__ == '__main__':
-    is_restore = True
+    is_restore = False
+    restore_path = ''
     iter_num = 10
     log_iter = 10
     batch_size = 32
     try:
-        opts, args = getopt.getopt(sys.argv, 'ri:l:b:', [
-                                   'restore', 'iteration=', 'logging_iteration_step=', 'batch_size='])
+        opts, args = getopt.gnu_getopt(sys.argv[1:], 'r:i:l:b:', [
+                                   'restore=', 'iteration=', 'logging_iteration_step=', 'batch_size='])
     except getopt.GetoptError:
         sys.exit(2)
     for opt, arg in opts:
         if opt in ('-r', '--restore'):
-            is_restore = bool(arg)
+            is_restore = True
+            restore_path = arg
         elif opt in ('-i', '--iteration'):
             iter_num = int(arg)
         elif opt in ('-l', '--logging_interation_step'):
             log_iter = int(arg)
         elif opt in ('-b', '--batch_size'):
             batch_size = int(arg)
-    train(iter_num, log_iter, batch_size)
+    train(iter_num, log_iter, batch_size, is_restore, restore_path)
