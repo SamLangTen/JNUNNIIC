@@ -222,19 +222,77 @@ def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restor
         # sess.close()
 
 
+def predict_model(test_tfrecord_path, restore_path, batch_size=32, class_num=6):
+
+    model_path = './model/'
+    x = tf.placeholder(tf.float32, [None, 128, 128, 3])
+    label = tf.placeholder(tf.float32, [None, class_num])
+    output, keep_prob = cnn(x)
+
+    accuracy = Evaluator(output, label)
+
+    test_x, test_label = get_data(
+        test_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
+
+    saver = tf.train.Saver(max_to_keep=5)
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+        saver.restore(sess, model_path+restore_path)
+        input_test_x, input_test_label = sess.run([test_x, test_label])
+
+        test_accuracy = accuracy.eval(session=sess, feed_dict={
+            x: input_test_x, label: input_test_label, keep_prob: 1.0})
+        print('===test accuracy is {}==='.format(test_accuracy))
+
+        coord.request_stop()
+        coord.join(threads)
+
+def print_help():
+    print('训练NNIIC网络')
+    print('')
+    print('./cnn.py [-h] [-r model_path] [-i iteration_times] [-l logging_step] [-b batch_size] [-p predict_record_path]')
+    print('')
+    print('参数：')
+    print('-r --restore\t要加载的模型存档。如果不指定，则从头开始训练模型')
+    print('-i --iteration\t训练的迭代次数。默认为10次')
+    print('-l --logging_iteration_step\t记录数据的间隔。默认为10步')
+    print('-b --batch_size\t每批的大小。默认为32')
+    print('-p --predict_path\t使用模型对指定的数据集进行预测。如果不指定，则表示训练模型。注意此参数需要配合--restore参数加载模型存档')
+    print('')
+    print('')
+    print('示例：')
+    print('')
+    print('从头开始训练模型，迭代1000次，每批32：')
+    print('./cnn.py -i 1000 -b 32')
+    print('')
+    print('从记录model.ckpt加载模型存档训练模型，迭代1000次，每批64：')
+    print('./cnn.py -r model.ckpt -i 1000 -b 32')
+    print('')
+    print('使用模型model.ckpt对数据集all.tfrecords进行预测，每批64：')
+    print('./cnn.py -r model.ckpt -b 32 -p ./all.tfrecords')
+
 if __name__ == '__main__':
     is_restore = False
     restore_path = ''
     iter_num = 10
     log_iter = 10
     batch_size = 32
+    is_predict = False
+    predict_path = ''
     try:
-        opts, args = getopt.gnu_getopt(sys.argv[1:], 'r:i:l:b:', [
-                                   'restore=', 'iteration=', 'logging_iteration_step=', 'batch_size='])
+        opts, args = getopt.gnu_getopt(sys.argv[1:], 'hr:i:l:b:p:', ['help',
+                                                                     'restore=', 'iteration=', 'logging_iteration_step=', 'batch_size=', 'predict_path='])
     except getopt.GetoptError:
         sys.exit(2)
     for opt, arg in opts:
-        if opt in ('-r', '--restore'):
+        if opt in ('-h', '--help'):
+            print_help()
+            sys.exit(2)
+        elif opt in ('-r', '--restore'):
             is_restore = True
             restore_path = arg
         elif opt in ('-i', '--iteration'):
@@ -243,4 +301,17 @@ if __name__ == '__main__':
             log_iter = int(arg)
         elif opt in ('-b', '--batch_size'):
             batch_size = int(arg)
-    train(iter_num, log_iter, batch_size, is_restore, restore_path)
+        elif opt in ('-p', '--predict_path'):
+            is_predict = True
+            predict_path = arg
+        else:
+            print_help()
+            sys.exit(2)
+    if is_predict:
+        if restore_path != '':
+            predict_model(predict_path, restore_path, batch_size)
+        else:
+            print_help()
+    else:
+        train(iter_num, log_iter, batch_size, is_restore, restore_path)
+
