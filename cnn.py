@@ -266,14 +266,17 @@ def print_help():
     print('')
     print('示例：')
     print('')
+    print('以默认配置从头开始训练模型：')
+    print('./cnn.py')
+    print('')
     print('从头开始训练模型，迭代1000次，每批32：')
     print('./cnn.py -i 1000 -b 32')
     print('')
     print('从记录model.ckpt加载模型存档训练模型，迭代1000次，每批64：')
-    print('./cnn.py -r model.ckpt -i 1000 -b 32')
+    print('./cnn.py -r model.ckpt -i 1000 -b 64')
     print('')
     print('使用模型model.ckpt对数据集all.tfrecords进行预测，每批64：')
-    print('./cnn.py -r model.ckpt -b 32 -p ./all.tfrecords')
+    print('./cnn.py -r model.ckpt -b 64 -p ./all.tfrecords')
 
 if __name__ == '__main__':
     is_restore = False

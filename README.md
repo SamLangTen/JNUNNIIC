@@ -18,6 +18,10 @@ JNU Neural Network Course Intel Image Classification
     
     
 ### 示例
+
+以默认配置开始训练模型：
+
+    ./cnn.py
     
 从头开始训练模型，迭代1000次，每批32：
 
@@ -25,11 +29,11 @@ JNU Neural Network Course Intel Image Classification
     
 从记录model.ckpt加载模型存档训练模型，迭代1000次，每批64：
 
-    ./cnn.py -r model.ckpt -i 1000 -b 32
+    ./cnn.py -r model.ckpt -i 1000 -b 64
     
 使用模型model.ckpt对数据集all.tfrecords进行预测，每批64：
 
-    ./cnn.py -r model.ckpt -b 32 -p ./all.tfrecords
+    ./cnn.py -r model.ckpt -b 64 -p ./all.tfrecords
 
 ### 注意事项
 
