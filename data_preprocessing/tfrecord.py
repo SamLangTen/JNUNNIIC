@@ -77,21 +77,30 @@ def mk_tfrecord_v2(path, file):
 def mk_tfrecord_all(file, *paths):
     '''制作所有数据的tfrecord'''
     writer = tf.python_io.TFRecordWriter(file)
+    img_dict = {}
     for index, class_name in enumerate(os.listdir(paths[0][0])):
         for path in list(paths[0]):
             class_path = path + class_name + '/'
             img_list = os.listdir(class_path)
-            print(index, class_name)
             for imgname in img_list:
-                img_path = class_path + imgname
-                img = Image.open(img_path)
-                img = img.resize((128, 128))
-                img_raw = img.tobytes()  # 转为二进制
-                example = tf.train.Example(features=tf.train.Features(feature={
-                    "label": tf.train.Feature(int64_list=tf.train.Int64List(value=[index])),
-                    'img_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
-                }))  # example对象对label和image数据进行封装
-                writer.write(example.SerializeToString())  # 序列化为字符串
+                img_dict[os.path.join(class_path, imgname)] = index
+    key_list = list(img_dict.keys())
+    # 打乱图片名顺序
+    random.shuffle(key_list)
+    key_num = len(key_list)
+
+    #写入
+    for i in range(0, key_num):
+        label = img_dict[key_list[i]]
+        img_path = key_list[i]
+        img = Image.open(img_path)
+        img = img.resize((128, 128))
+        img_raw = img.tobytes()  # 转为二进制
+        example = tf.train.Example(features=tf.train.Features(feature={
+            "label": tf.train.Feature(int64_list=tf.train.Int64List(value=[label])),
+            'img_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[img_raw]))
+        }))  # example对象对label和image数据进行封装
+        writer.write(example.SerializeToString())  # 序列化为字符串
     writer.close()
 
 
@@ -157,6 +166,7 @@ def print_help():
     print('打包若干数据')
     print('./tfrecord.py -r "../data/record/" -a "../data/train/" "../data/val/" "../data/test/"')
     print('')
+
 
 if __name__ == '__main__':
 
