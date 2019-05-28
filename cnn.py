@@ -99,8 +99,8 @@ def cnn(x):
 
     '''第六层全连接层'''
     with tf.name_scope("fc2"):
-        W_fc2 = weight_variable([1024, 6])
-        b_fc2 = bias_variable([6])
+        W_fc2 = weight_variable([1024, 5])
+        b_fc2 = bias_variable([5])
         output = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
     '''output: [batch_size,6]'''
@@ -138,7 +138,7 @@ def Evaluator(output, label):
 def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restore_path=''):
     # 总迭代次数
     # 输出间隔
-    class_num = 6
+    class_num = 5
     train_tfrecord_path = './data/record/train.tfrecords'
     val_tfrecord_path = './data/record/val.tfrecords'
     test_tfrecord_path = './data/record/test.tfrecords'
@@ -222,7 +222,7 @@ def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restor
         # sess.close()
 
 
-def predict_model(test_tfrecord_path, restore_path, batch_size=32, class_num=6):
+def predict_model(test_tfrecord_path, restore_path, batch_size=32, class_num=5):
 
     model_path = './model/'
     x = tf.placeholder(tf.float32, [None, 128, 128, 3])
