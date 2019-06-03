@@ -1,10 +1,12 @@
 import tensorflow as tf
+import numpy as np
 import tempfile
 import os
 import sys
 import time
 import getopt
 from data_preprocessing.tfrecord import read_and_decode, get_data, clear_dir
+from model import VggNetModel
 
 
 def conv2d(x, W):
@@ -30,6 +32,195 @@ scalar_summary = tf.summary.scalar
 histogram_summary = tf.summary.histogram
 merge_summary = tf.summary.merge
 SummaryWriter = tf.summary.FileWriter
+
+
+def inference(x, training=False):
+    keep_prob = tf.placeholder(tf.float32)
+    # conv1_1
+    with tf.variable_scope('conv1_1') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 3, 64], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(x, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[64], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv1_1 = tf.nn.relu(out, name=scope.name)
+
+    # conv1_2
+    with tf.variable_scope('conv1_2') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 64, 64], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv1_1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[64], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv1_2 = tf.nn.relu(out, name=scope.name)
+
+    # pool1
+    pool1 = tf.nn.max_pool(conv1_2, ksize=[1, 2, 2, 1], strides=[
+                           1, 2, 2, 1], padding='SAME', name='pool1')
+
+    # conv2_1
+    with tf.variable_scope('conv2_1') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 64, 128], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(pool1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[128], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv2_1 = tf.nn.relu(out, name=scope.name)
+
+    # conv2_2
+    with tf.variable_scope('conv2_2') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 128, 128], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv2_1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[128], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv2_2 = tf.nn.relu(out, name=scope.name)
+
+    # pool2
+    pool2 = tf.nn.max_pool(conv2_2, ksize=[1, 2, 2, 1], strides=[
+                           1, 2, 2, 1], padding='SAME', name='pool2')
+
+    # conv3_1
+    with tf.variable_scope('conv3_1') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 128, 256], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(pool2, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[256], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv3_1 = tf.nn.relu(out, name=scope.name)
+
+    # conv3_2
+    with tf.variable_scope('conv3_2') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 256, 256], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv3_1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[256], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv3_2 = tf.nn.relu(out, name=scope.name)
+
+    # conv3_3
+    with tf.variable_scope('conv3_3') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 256, 256], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv3_2, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[256], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv3_3 = tf.nn.relu(out, name=scope.name)
+
+    # pool3
+    pool3 = tf.nn.max_pool(conv3_3, ksize=[1, 2, 2, 1], strides=[
+                           1, 2, 2, 1], padding='SAME', name='pool3')
+
+    # conv4_1
+    with tf.variable_scope('conv4_1') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 256, 512], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(pool3, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[512], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv4_1 = tf.nn.relu(out, name=scope.name)
+
+    # conv4_2
+    with tf.variable_scope('conv4_2') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 512, 512], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv4_1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[512], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv4_2 = tf.nn.relu(out, name=scope.name)
+
+    # conv4_3
+    with tf.variable_scope('conv4_3') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 512, 512], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv4_2, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[512], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv4_3 = tf.nn.relu(out, name=scope.name)
+
+    # pool4
+    pool4 = tf.nn.max_pool(conv4_3, ksize=[1, 2, 2, 1], strides=[
+                           1, 2, 2, 1], padding='SAME', name='pool4')
+
+    # conv5_1
+    with tf.variable_scope('conv5_1') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 512, 512], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(pool4, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[512], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv5_1 = tf.nn.relu(out, name=scope.name)
+
+    # conv5_2
+    with tf.variable_scope('conv5_2') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 512, 512], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv5_1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[512], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv5_2 = tf.nn.relu(out, name=scope.name)
+
+    # conv5_3
+    with tf.variable_scope('conv5_3') as scope:
+        kernel = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [3, 3, 512, 512], dtype=tf.float32, stddev=1e-1))
+        conv = tf.nn.conv2d(conv5_2, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = tf.get_variable('biases', initializer=tf.constant(
+            0.0, shape=[512], dtype=tf.float32))
+        out = tf.nn.bias_add(conv, biases)
+        conv5_3 = tf.nn.relu(out, name=scope.name)
+
+    # pool5
+    pool5 = tf.nn.max_pool(conv5_3, ksize=[1, 2, 2, 1], strides=[
+                           1, 2, 2, 1], padding='SAME', name='pool5')
+
+    # fc6
+    with tf.variable_scope('fc6') as scope:
+        shape = int(np.prod(pool5.get_shape()[1:]))
+        fc6w = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [shape, 4096], dtype=tf.float32, stddev=1e-1))
+        fc6b = tf.get_variable('biases', initializer=tf.constant(
+            1.0, shape=[4096], dtype=tf.float32))
+        pool5_flat = tf.reshape(pool5, [-1, shape])
+        fc6l = tf.nn.bias_add(tf.matmul(pool5_flat, fc6w), fc6b)
+        fc6 = tf.nn.relu(fc6l)
+
+        if training:
+            fc6 = tf.nn.dropout(fc6, keep_prob)
+
+    # fc7
+    with tf.variable_scope('fc7') as scope:
+        fc7w = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [4096, 4096], dtype=tf.float32, stddev=1e-1))
+        fc7b = tf.get_variable('biases', initializer=tf.constant(
+            1.0, shape=[4096], dtype=tf.float32))
+        fc7l = tf.nn.bias_add(tf.matmul(fc6, fc7w), fc7b)
+        fc7 = tf.nn.relu(fc7l)
+
+        if training:
+            fc7 = tf.nn.dropout(fc7, keep_prob)
+
+    # fc8
+    with tf.variable_scope('fc8') as scope:
+        fc8w = tf.get_variable('weights', initializer=tf.truncated_normal(
+            [4096, 6], dtype=tf.float32, stddev=1e-1))
+        fc8b = tf.get_variable('biases', initializer=tf.constant(
+            1.0, shape=[6], dtype=tf.float32))
+        score = tf.nn.bias_add(tf.matmul(fc7, fc8w), fc8b)
+
+    return score, keep_prob
 
 
 def cnn(x):
@@ -143,13 +334,14 @@ def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restor
     val_tfrecord_path = './data/record/val.tfrecords'
     test_tfrecord_path = './data/record/test.tfrecords'
     model_path = './model/'
-
+    vgg = VggNetModel(6, 0.5)
     # clear_dir(model_path)
 
     x = tf.placeholder(tf.float32, [None, 128, 128, 3])
 
     label = tf.placeholder(tf.float32, [None, class_num])
-    output, keep_prob = cnn(x)
+    #output, keep_prob = cnn(x)
+    output, keep_prob = inference(x, True)
 
     # 优化器
     optimizer = Optimizer(output, label)
@@ -251,6 +443,7 @@ def predict_model(test_tfrecord_path, restore_path, batch_size=32, class_num=6):
         coord.request_stop()
         coord.join(threads)
 
+
 def print_help():
     print('训练NNIIC网络')
     print('')
@@ -277,6 +470,7 @@ def print_help():
     print('')
     print('使用模型model.ckpt对数据集all.tfrecords进行预测，每批64：')
     print('./cnn.py -r model.ckpt -b 64 -p ./all.tfrecords')
+
 
 if __name__ == '__main__':
     is_restore = False
@@ -317,4 +511,3 @@ if __name__ == '__main__':
             print_help()
     else:
         train(iter_num, log_iter, batch_size, is_restore, restore_path)
-
