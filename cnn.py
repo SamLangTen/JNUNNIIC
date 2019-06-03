@@ -5,7 +5,7 @@ import sys
 import time
 import getopt
 from data_preprocessing.tfrecord import read_and_decode, get_data, clear_dir
-
+import numpy as np
 
 def conv2d(x, W):
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding="SAME")
@@ -138,7 +138,7 @@ def Evaluator(output, label):
 def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restore_path=''):
     # 总迭代次数
     # 输出间隔
-    class_num = 6
+    class_num = 5
     train_tfrecord_path = './data/record/train.tfrecords'
     val_tfrecord_path = './data/record/val.tfrecords'
     test_tfrecord_path = './data/record/test.tfrecords'
@@ -222,30 +222,84 @@ def train(iter_num=20, log_iter_step=10, batch_size=32, is_restore=False, restor
         # sess.close()
 
 
-def predict_model(test_tfrecord_path, restore_path, batch_size=32, class_num=6):
+# def predict_model(test_tfrecord_path, restore_path, batch_size=32, class_num=6):
+#
+#     model_path = './model/'
+#     x = tf.placeholder(tf.float32, [None, 128, 128, 3])
+#     label = tf.placeholder(tf.float32, [None, class_num])
+#     output, keep_prob = cnn(x)
+#
+#     accuracy = Evaluator(output, label)
+#
+#     test_x, test_label = get_data(
+#         test_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
+#
+#     saver = tf.train.Saver()
+#     with tf.Session() as sess:
+#         sess.run(tf.global_variables_initializer())
+#         sess.run(tf.local_variables_initializer())
+#         coord = tf.train.Coordinator()
+#         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+#
+#         saver.restore(sess, model_path+restore_path)
+#         input_test_x, input_test_label = sess.run([test_x, test_label])
+#
+#         test_accuracy = accuracy.eval(session=sess, feed_dict={
+#             x: input_test_x, label: input_test_label, keep_prob: 1.0})
+#         print('===test accuracy is {}==='.format(test_accuracy))
+#
+#         coord.request_stop()
+#         coord.join(threads)
 
-    model_path = './model/'
+def get_test_data(img_path):
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from skimage import io, transform
+    input_test_X = io.imread(img_path)
+    input_test_X = input_test_X.astype(np.float32)
+    input_test_X = (1./255) * input_test_X
+    input_test_X = transform.resize(input_test_X,(128,128))
+    input_test_X = np.reshape(input_test_X,(1,128,128,3))
+    input_test_X = input_test_X.astype(np.float32)
+    return input_test_X
+
+def softmax(output):
+    scores = output
+    scores -= np.max(output)  # scores becomes [-666, -333, 0]
+    p = np.exp(scores) / np.sum(np.exp(scores))
+    return p
+
+def predict_model(test_dir, model_path,label_list):
     x = tf.placeholder(tf.float32, [None, 128, 128, 3])
-    label = tf.placeholder(tf.float32, [None, class_num])
     output, keep_prob = cnn(x)
 
-    accuracy = Evaluator(output, label)
-
-    test_x, test_label = get_data(
-        test_tfrecord_path, batch_size=batch_size, one_hot=True, label_num=class_num)
-
-    saver = tf.train.Saver(max_to_keep=5)
+    saver = tf.train.Saver()
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-        saver.restore(sess, model_path+restore_path)
-        input_test_x, input_test_label = sess.run([test_x, test_label])
+        saver.restore(sess, model_path)
+        class_list = os.listdir(test_dir)
+        correct_num = 0
+        total_test_num = 0
+        for class_name in class_list:
+            # print(class_list)
+            label = class_list.index(class_name)
+            img_list = os.listdir(test_dir+class_name+'/')
+            for img in img_list:
+                input_test_X = get_test_data(test_dir+class_name+'/'+img)
+                output_label = sess.run(output, feed_dict={x:input_test_X, keep_prob:0.5})
+                output_label = softmax(output_label)
+                predict_label = np.argmax(output_label)
+                print('predict label is {} in {},the true label is {}'.format(label_list[predict_label],label_list,label_list[label]))
+                if label == predict_label:
+                    correct_num += 1
+                total_test_num += 1
 
-        test_accuracy = accuracy.eval(session=sess, feed_dict={
-            x: input_test_x, label: input_test_label, keep_prob: 1.0})
+        test_accuracy = float(correct_num / total_test_num)
+
         print('===test accuracy is {}==='.format(test_accuracy))
 
         coord.request_stop()
